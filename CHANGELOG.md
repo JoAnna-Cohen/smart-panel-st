@@ -1,5 +1,33 @@
 # Changelog
 
+## smart-panel-st (this fork): SmartThings connector - 2026-09-24
+
+This fork of [rwoldberg/ldata-ha](https://github.com/rwoldberg/ldata-ha) adds a SmartThings
+Schema Connector. The Home Assistant integration below is unchanged from upstream 2.0.12. See
+[README.md](README.md) and [SMARTTHINGS.md](SMARTTHINGS.md).
+
+### Added
+- **SmartThings connector.** Each panel, smart breaker and CT clamp becomes a SmartThings
+  device. Panels and CT clamps have Leg A / Leg B readings, laid out like SmartThings' own
+  whole-home energy meters.
+- **Leviton login page with 2FA.** Credentials are stored encrypted so the connector can sign
+  in again when Leviton's session expires.
+- **Opt-in breaker control**, chosen at login and off by default. Gen 1 breakers can only be
+  turned off remotely.
+- **15-minute background push** of fresh readings to SmartThings (`worker.py`).
+- **Energy totals** calculated as power × time between readings (2.x firmware has no running
+  counter), also sent as SmartThings energy reports.
+- **Device profiles** for the SmartThings CLI in `smartthings/profiles/`, and a deployment guide
+  for the Hestia server at smart-panel.bizgeni.com.
+
+### Changed
+- The original Home Assistant README moved to [HOME_ASSISTANT.md](HOME_ASSISTANT.md). README.md
+  now describes this fork.
+
+---
+
+## Upstream: Leviton LDATA Home Assistant integration
+
 All notable changes to the Leviton LDATA integration are documented here.
 
 ## 2.0.12 - 2026-09-23

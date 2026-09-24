@@ -10,8 +10,10 @@ Interactions:
 Panels and CT clamps follow the layout of SmartThings' own whole-home
 meters (Aeotec Home Energy Meter, 2-phase power meter): totals on the main
 component, plus legA / legB components with power, current and voltage.
-Every device carries powerConsumptionReport so it shows up in SmartThings
-Energy. Profile definitions live in smartthings/profiles/.
+Every device also sends powerConsumptionReport. SmartThings accepts it from
+cloud connectors, but SmartThings Energy only lists devices from certified
+("Works with SmartThings") integrations, so for now the useful values are
+powerMeter / energyMeter. Profile definitions live in smartthings/profiles/.
 
 https://developer.smartthings.com/docs/devices/cloud-connected/st-schema
 """

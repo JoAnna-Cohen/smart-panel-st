@@ -11,10 +11,12 @@ Gaps longer than ENERGY_MAX_GAP (panel offline, server down) are skipped
 rather than guessed, which matches the HA integration's default "skip"
 gap handling.
 
-SmartThings Energy reads the powerConsumptionReport capability: a running
-total in Wh plus the change since the previous report. SmartThings allows
-at most one report per 15 minutes per device, so reports are only emitted
-when that much time has passed.
+The total is shown in kWh via energyMeter. It is also sent as a
+powerConsumptionReport (running Wh plus the change since the last report),
+which is what SmartThings Energy reads; SmartThings only lists devices from
+certified integrations there. SmartThings allows at most one report per 15
+minutes per device, so reports are only emitted when that much time has
+passed.
 """
 
 import os

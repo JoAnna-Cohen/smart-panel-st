@@ -423,3 +423,28 @@ def test_callback_grant_and_worker_push(env, monkeypatch):
     assert body["headers"]["interactionType"] == "stateCallback"
     assert body["authentication"]["token"] == "cb-at"
     assert {d["externalDeviceId"] for d in body["deviceState"]} == {"panel-P1", "breaker-B1", "ct-P1-7"}
+
+
+def test_callback_refresh_uses_refresh_interaction():
+    from smartpanel_smartthings import callbacks
+
+    cb = {"urls": {"oauthToken": "https://c2c-us.smartthings.com/oauth/token",
+                   "stateCallback": "https://c2c-us.smartthings.com/device/events"},
+          "access_token": "old", "refresh_token": "rt", "expires_at": 0}  # expired
+    posts = []
+
+    def fake_post(url, json, timeout):
+        posts.append(json)
+        if url == cb["urls"]["oauthToken"]:
+            return _Resp(200, {"callbackAuthentication": {
+                "accessToken": "new", "refreshToken": "rt2", "expiresIn": 86400}})
+        return _Resp(200, {})
+
+    with patch("smartpanel_smartthings.callbacks.requests.post", side_effect=fake_post):
+        new = callbacks.push_state(cb, [], "cid", "csecret")
+
+    assert posts[0]["headers"]["interactionType"] == "refreshAccessTokens"
+    assert posts[0]["callbackAuthentication"] == {
+        "grantType": "refresh_token", "refreshToken": "rt", "clientId": "cid", "clientSecret": "csecret"}
+    assert posts[1]["authentication"]["token"] == "new"
+    assert new["refresh_token"] == "rt2"

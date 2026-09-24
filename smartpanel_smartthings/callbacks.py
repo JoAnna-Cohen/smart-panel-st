@@ -32,11 +32,11 @@ def _headers(interaction_type: str) -> dict:
     }
 
 
-def _token_request(urls: dict, callback_auth: dict) -> dict:
+def _token_request(urls: dict, interaction_type: str, callback_auth: dict) -> dict:
     resp = requests.post(
         urls["oauthToken"],
         json={
-            "headers": _headers("accessTokenRequest"),
+            "headers": _headers(interaction_type),
             "callbackAuthentication": callback_auth,
         },
         timeout=TIMEOUT,
@@ -59,6 +59,7 @@ def exchange_code(grant: dict, urls: dict, client_id: str, client_secret: str) -
     """Trade the grantCallbackAccess code for callback tokens."""
     return _token_request(
         urls,
+        "accessTokenRequest",
         {
             "grantType": "authorization_code",
             "code": grant.get("code"),
@@ -71,8 +72,10 @@ def exchange_code(grant: dict, urls: dict, client_id: str, client_secret: str) -
 def refresh(cb: dict, client_id: str, client_secret: str) -> dict:
     if not cb.get("refresh_token"):
         raise CallbackAuthError("no callback refresh token")
+    # Refreshing is its own interaction type, not another accessTokenRequest.
     return _token_request(
         cb["urls"],
+        "refreshAccessTokens",
         {
             "grantType": "refresh_token",
             "refreshToken": cb["refresh_token"],

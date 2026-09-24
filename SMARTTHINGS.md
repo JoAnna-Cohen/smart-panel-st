@@ -30,12 +30,19 @@ the same one its official power meters use.
 A CT whose usage type is Solar (or a breaker whose circuit type is Solar) is a
 **production** meter: its energy counts generation. Everything else counts consumption.
 
-### SmartThings Energy
+### Energy
 
-Every device reports `powerConsumptionReport`, which is the capability that makes a
-device show up in **SmartThings Energy** (the Energy section of the app). SmartThings
-accepts at most one report per device every 15 minutes, which is why the push
-interval is 15 minutes.
+Every device shows its energy use (kWh, `energyMeter`) and live power (W) on its
+own page in the SmartThings app, and both can be used in routines.
+
+Devices also send `powerConsumptionReport`, the report the **SmartThings Energy**
+section of the app is built on. SmartThings accepts it from cloud connectors, but
+[SmartThings staff confirmed](https://community.smartthings.com/t/can-the-powerconsumptionreport-be-used-in-the-schema-cloud-connector-integration/304596)
+that devices only appear in SmartThings Energy after an extra approval step in
+"Works with SmartThings" certification. For this private connector they won't be
+listed there. The report is sent anyway so it's ready if the connector is ever
+certified. SmartThings accepts at most one report per device every 15 minutes,
+which is why the push interval is 15 minutes.
 
 Leviton's 2.x panel firmware doesn't keep a running energy total. Its counter
 resets every time the panel is woken up. So the connector works out energy itself,
@@ -53,9 +60,8 @@ the same way the Home Assistant integration does:
   readings (a microwave, say) is estimated, not measured. Over a day, whole-panel
   and CT totals come out much closer than short, spiky individual circuits.
 
-In the SmartThings app's Energy settings, pick the **Grid CT** (or the panel, if you
-have no CT) as your whole-home meter and the **Solar CT** as your solar production
-meter.
+The **Grid CT** (or the panel, if you have no CT) is your whole-home total, and
+the **Solar CT** is your solar production.
 
 Every device also reports online/offline (`healthCheck`) from the panel's
 connection state. Non-smart ("dumb") breakers and Decora Smart Wi-Fi devices are
@@ -136,8 +142,8 @@ This needs its **own** Schema App, separate from the Philips one.
    You can also build them by hand in the Developer Center. Match the component ids
    (`main`, `legA`, `legB`) exactly, because the connector sends states to those names.
    If `ST_PROFILE_BREAKER` is blank, breakers use SmartThings' built-in
-   `c2c-switch-power-energy` handler, which has no voltage/current tiles and doesn't
-   show up in SmartThings Energy. Panels and CTs are skipped until their profile id is set.
+   `c2c-switch-power-energy` handler (switch, power and energy only; no
+   voltage or current). Panels and CTs are skipped until their profile id is set.
 3. Add a **Schema App (Cloud Connector)**:
 
    | Field | Value |

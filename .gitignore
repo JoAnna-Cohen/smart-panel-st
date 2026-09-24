@@ -9,3 +9,10 @@ __pycache__/
 
 # Intellij IDEA stores project information in this directory
 .idea
+
+# SmartThings connector
+.env
+.venv/
+venv/
+data/
+*.json.lock

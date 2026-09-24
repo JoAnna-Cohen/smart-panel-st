@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leviton Smart Panel – Connect to SmartThings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: #0070c9;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1.3rem;
+    }
+
+    .logo-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1.2;
+    }
+
+    .logo-sub {
+      font-size: 0.78rem;
+      color: #666;
+      font-weight: 400;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 0.35rem;
+    }
+
+    p.subtitle {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 1.75rem;
+    }
+
+    .error-box {
+      background: #fff0f0;
+      border: 1px solid #f5c6c6;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #c0392b;
+      font-size: 0.88rem;
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 0.35rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: #1a1a2e;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    input:focus, select:focus {
+      border-color: #0070c9;
+      box-shadow: 0 0 0 3px rgba(0,112,201,0.12);
+    }
+
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #0070c9;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 0.25rem;
+    }
+
+    button:hover { background: #005fa3; }
+    button:active { background: #004f8a; }
+
+    .footer {
+      margin-top: 1.5rem;
+      font-size: 0.78rem;
+      color: #888;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .check {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      background: #f7f9fb;
+      border: 1px solid #e3e8ee;
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: #333;
+      line-height: 1.45;
+    }
+
+    .check input {
+      width: auto;
+      margin: 0.2rem 0 0;
+      box-shadow: none;
+    }
+
+    .check small { color: #777; display: block; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">&#9889;</div>
+      <div class="logo-text">
+        Leviton Smart Panel
+        <div class="logo-sub">SmartThings Integration</div>
+      </div>
+    </div>
+
+    {% if step == "code" %}
+    <h1>Enter your verification code</h1>
+    <p class="subtitle">
+      Your Leviton account uses two-factor authentication. Enter the code
+      Leviton just sent you.
+    </p>
+    {% elif step == "error" %}
+    <h1>Something went wrong</h1>
+    {% else %}
+    <h1>Sign in to My Leviton</h1>
+    <p class="subtitle">
+      Use your my.leviton.com account to link your smart breaker panels
+      with SmartThings.
+    </p>
+    {% endif %}
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    {% if step == "code" %}
+    <form method="POST" action="{{ url_for('oauth_authorize_post') }}">
+      <input type="hidden" name="step" value="code" />
+      <label for="code">Verification code</label>
+      <input
+        type="text"
+        id="code"
+        name="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        required
+        autofocus
+      />
+      <button type="submit">Verify and connect</button>
+    </form>
+    {% elif step != "error" %}
+    <form method="POST" action="{{ url_for('oauth_authorize_post') }}">
+      <label for="email">Email address</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        placeholder="you@example.com"
+        required
+        autocomplete="email"
+      />
+
+      <label for="password">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        placeholder="••••••••"
+        required
+        autocomplete="current-password"
+      />
+
+      <label class="check">
+        <input type="checkbox" name="allow_control" />
+        <span>
+          Allow SmartThings to turn breakers off and on
+          <small>
+            Off by default. When enabled, the SmartThings app, automations
+            and voice assistants can cut power to circuits. Gen 1 breakers
+            can only be turned off remotely.
+          </small>
+        </span>
+      </label>
+
+      <button type="submit">Connect to SmartThings</button>
+    </form>
+    {% endif %}
+
+    <div class="footer">
+      Your Leviton password is stored encrypted on this server so it can
+      sign in again when Leviton's session expires. Remove the integration
+      in SmartThings to delete it.
+    </div>
+  </div>
+</body>
+</html>

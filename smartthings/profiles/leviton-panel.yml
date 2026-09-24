@@ -1,0 +1,42 @@
+# Leviton panel (LDATA / LWHEM). Same layout as SmartThings' own 2-phase
+# power meter: totals on main, per-leg readings on legA / legB.
+# Create with: smartthings deviceprofiles:create -i leviton-panel.yml
+name: leviton-panel
+components:
+  - id: main
+    label: "Panel Total"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: energyMeter
+        version: 1
+      - id: powerConsumptionReport
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+      - id: healthCheck
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legA
+    label: "Leg A"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legB
+    label: "Leg B"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter

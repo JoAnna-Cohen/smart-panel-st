@@ -1,0 +1,43 @@
+# Leviton Solar / generation CT clamp. Same layout as SmartThings' own
+# Aeotec Home Energy Meter: total on main, per-leg on legA / legB. Energy is
+# counted from the absolute power, so it reads as generation even if the
+# clamp is mounted backwards. In SmartThings Energy, choose this device as
+# the solar production meter.
+# Create with: smartthings deviceprofiles:create -i leviton-solar.yml
+name: leviton-solar
+components:
+  - id: main
+    label: "Production"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: energyMeter
+        version: 1
+      - id: powerConsumptionReport
+        version: 1
+      - id: healthCheck
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legA
+    label: "Leg A"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legB
+    label: "Leg B"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter

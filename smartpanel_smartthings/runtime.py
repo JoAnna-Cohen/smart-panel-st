@@ -23,7 +23,8 @@ ST_CLIENT_SECRET = os.environ.get("ST_CLIENT_SECRET", "")
 ST_CALLBACK_CLIENT_ID = os.environ.get("ST_CALLBACK_CLIENT_ID", "")
 ST_CALLBACK_CLIENT_SECRET = os.environ.get("ST_CALLBACK_CLIENT_SECRET", "")
 
-PUSH_INTERVAL = int(os.environ.get("PUSH_INTERVAL", 600))
+# 15 minutes: SmartThings accepts at most one energy report per 15 minutes.
+PUSH_INTERVAL = int(os.environ.get("PUSH_INTERVAL", 900))
 
 
 def setup_logging():

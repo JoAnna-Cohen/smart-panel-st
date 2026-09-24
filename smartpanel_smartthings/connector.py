@@ -2,10 +2,16 @@
 
 Interactions:
 - discoveryRequest      -> one device per panel, smart breaker and CT clamp
-- stateRefreshRequest   -> current power / voltage / current / on-off state
+- stateRefreshRequest   -> power / energy / voltage / current / on-off state
 - commandRequest        -> breaker on/off (only if control was allowed at login)
 - grantCallbackAccess   -> exchange for callback tokens (used by worker.py)
 - integrationDeleted    -> forget the link and its credentials
+
+Panels and CT clamps follow the layout of SmartThings' own whole-home
+meters (Aeotec Home Energy Meter, 2-phase power meter): totals on the main
+component, plus legA / legB components with power, current and voltage.
+Every device carries powerConsumptionReport so it shows up in SmartThings
+Energy. Profile definitions live in smartthings/profiles/.
 
 https://developer.smartthings.com/docs/devices/cloud-connected/st-schema
 """
@@ -14,7 +20,7 @@ import logging
 import os
 import time
 
-from . import callbacks, leviton
+from . import callbacks, energy, leviton
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,13 +31,18 @@ ST_VERSION = "1.0"
 # fetch wakes the panel (bandwidth toggle), so don't do it on every request.
 SNAPSHOT_MAX_AGE = int(os.environ.get("SNAPSHOT_MAX_AGE", 60))
 
-# Device profile IDs created in the SmartThings Developer Center (see
-# SMARTTHINGS.md). Breakers fall back to a built-in handler type if no
-# custom profile is configured; panels and CTs need their own profile.
+# Device profile IDs created from smartthings/profiles/ (see SMARTTHINGS.md).
+# Breakers fall back to a built-in handler type if no custom profile is
+# configured; panels and CTs need their own profile. Solar CTs use
+# ST_PROFILE_SOLAR if set, otherwise the CT profile.
 PROFILE_BREAKER = os.environ.get("ST_PROFILE_BREAKER", "")
 PROFILE_PANEL = os.environ.get("ST_PROFILE_PANEL", "")
 PROFILE_CT = os.environ.get("ST_PROFILE_CT", "")
+PROFILE_SOLAR = os.environ.get("ST_PROFILE_SOLAR", "") or PROFILE_CT
 DEFAULT_BREAKER_HANDLER = "c2c-switch-power-energy"
+
+# Category SmartThings' own power-meter drivers use for energy meters.
+METER_CATEGORY = "CurbPowerMeter"
 
 
 def _headers(interaction_type: str, request_id: str) -> dict:
@@ -43,11 +54,25 @@ def _headers(interaction_type: str, request_id: str) -> dict:
     }
 
 
-def _state(capability: str, attribute: str, value, unit: str | None = None) -> dict:
-    s = {"component": "main", "capability": capability, "attribute": attribute, "value": value}
+def _state(capability: str, attribute: str, value, unit: str | None = None,
+           component: str = "main") -> dict:
+    s = {"component": component, "capability": capability, "attribute": attribute, "value": value}
     if unit:
         s["unit"] = unit
     return s
+
+
+def _electrical(values: dict, component: str) -> list:
+    states = []
+    for key, cap, unit in (
+        ("power", "st.powerMeter", "W"),
+        ("voltage", "st.voltageMeasurement", "V"),
+        ("current", "st.currentMeasurement", "A"),
+    ):
+        if values.get(key) is not None:
+            # The attribute name matches the snapshot key (power/voltage/current).
+            states.append(_state(cap, key, values[key], unit, component))
+    return states
 
 
 def build_states(dev: dict) -> list:
@@ -57,14 +82,15 @@ def build_states(dev: dict) -> list:
     ]
     if dev["kind"] == "breaker":
         states.append(_state("st.switch", "switch", "on" if dev.get("on") else "off"))
-    if dev.get("power") is not None:
-        states.append(_state("st.powerMeter", "power", dev["power"], "W"))
+    states += _electrical(dev, "main")
     if dev.get("energy") is not None:
         states.append(_state("st.energyMeter", "energy", dev["energy"], "kWh"))
-    if dev.get("voltage") is not None:
-        states.append(_state("st.voltageMeasurement", "voltage", dev["voltage"], "V"))
-    if dev.get("current") is not None:
-        states.append(_state("st.currentMeasurement", "current", dev["current"], "A"))
+    if dev.get("consumption_report"):
+        states.append(
+            _state("st.powerConsumptionReport", "powerConsumption", dev["consumption_report"])
+        )
+    for leg_id, leg in (dev.get("legs") or {}).items():
+        states += _electrical(leg, leg_id)
     return states
 
 
@@ -103,6 +129,8 @@ class SmartThingsConnector:
         except leviton.LDATAAuthError:
             self._auth.mark_needs_reauth(link_id)
             raise
+        now = snapshot["fetched_at"]
+        self._auth.update_energy(link_id, lambda st: energy.apply(st, snapshot, now))
         self._auth.save_creds(link_id, new_creds)
         self._auth.save_snapshot(link_id, snapshot)
         return snapshot
@@ -187,8 +215,8 @@ class SmartThingsConnector:
         kind, name = dev["kind"], dev["name"]
         profile, category = {
             "breaker": (PROFILE_BREAKER, "Switch"),
-            "panel": (PROFILE_PANEL, "EnergyMonitor"),
-            "ct": (PROFILE_CT, "EnergyMonitor"),
+            "panel": (PROFILE_PANEL, METER_CATEGORY),
+            "ct": (PROFILE_SOLAR if dev.get("role") == "solar" else PROFILE_CT, METER_CATEGORY),
         }[kind]
 
         entry = {

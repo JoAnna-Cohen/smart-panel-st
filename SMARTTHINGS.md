@@ -15,15 +15,47 @@ Hosted at **https://smart-panel.bizgeni.com**.
 
 ## What shows up in SmartThings
 
-| Device | One per | Capabilities |
-|---|---|---|
-| Breaker | smart breaker | `switch`, `powerMeter`, `energyMeter`*, `voltageMeasurement`, `currentMeasurement` |
-| Panel | LDATA / LWHEM hub | `powerMeter` (sum of breakers), `voltageMeasurement` (leg-to-leg) |
-| CT clamp | CT with a usage type (Grid, Solar…) | `powerMeter`, `currentMeasurement` |
+The layout follows SmartThings' own whole-home energy meters (the Aeotec Home
+Energy Meter and SmartThings' 2-phase power meter). Panels and CT clamps are one
+device each, with the totals on top and a **Leg A / Leg B** section showing each
+leg's power, current and voltage. They use SmartThings' `CurbPowerMeter` category,
+the same one its official power meters use.
 
-\* Energy (kWh) is only reported for v1-firmware panels. On firmware 2.x Leviton
-resets the energy counter every time the panel is woken up, so it isn't a
-usable running total.
+| Device | One per | Main (top of the device page) | Leg A / Leg B |
+|---|---|---|---|
+| Panel | LDATA / LWHEM hub | Total power (sum of breakers), energy, leg-to-leg voltage | Power, current, voltage |
+| CT clamp | CT with a usage type (Grid, Solar…) | Power, energy | Power, current, voltage |
+| Breaker | smart breaker | On/off, power, energy, voltage, current | – |
+
+A CT whose usage type is Solar (or a breaker whose circuit type is Solar) is a
+**production** meter: its energy counts generation. Everything else counts consumption.
+
+### SmartThings Energy
+
+Every device reports `powerConsumptionReport`, which is the capability that makes a
+device show up in **SmartThings Energy** (the Energy section of the app). SmartThings
+accepts at most one report per device every 15 minutes, which is why the push
+interval is 15 minutes.
+
+Leviton's 2.x panel firmware doesn't keep a running energy total. Its counter
+resets every time the panel is woken up. So the connector works out energy itself,
+the same way the Home Assistant integration does:
+
+- Between two readings it adds **average power × time elapsed** (the trapezoid
+  rule). Readings come from the 15-minute push, plus any refresh from the app.
+- Energy totals start at 0 when you link the account.
+- If there's no reading for more than 35 minutes (`ENERGY_MAX_GAP`), for example
+  because the panel or the server was offline, that gap is **skipped** rather than
+  guessed. Energy used while the panel is offline isn't counted.
+- For consumption, negative power (export) counts as 0. For solar, the size of the
+  power counts, so a clamp mounted backwards still reads as generation.
+- Because it samples every 15 minutes, a load that switches on and off between
+  readings (a microwave, say) is estimated, not measured. Over a day, whole-panel
+  and CT totals come out much closer than short, spiky individual circuits.
+
+In the SmartThings app's Energy settings, pick the **Grid CT** (or the panel, if you
+have no CT) as your whole-home meter and the **Solar CT** as your solar production
+meter.
 
 Every device also reports online/offline (`healthCheck`) from the panel's
 connection state. Non-smart ("dumb") breakers and Decora Smart Wi-Fi devices are
@@ -46,9 +78,10 @@ To change the setting, remove the integration in SmartThings and link again.
 - **When you open a device in the app** (stateRefresh), the connector fetches
   from Leviton. It reuses data up to 60 s old (`SNAPSHOT_MAX_AGE`) so it doesn't
   wake the panel on every request.
-- **Every 10 minutes** (`PUSH_INTERVAL`), `worker.py` fetches every linked
-  account and pushes the values to SmartThings, so automations see current
-  numbers even when nobody has the app open.
+- **Every 15 minutes** (`PUSH_INTERVAL`), `worker.py` fetches every linked
+  account and pushes the values and energy reports to SmartThings, so
+  automations and SmartThings Energy stay current even when nobody has the
+  app open.
 
 ---
 
@@ -56,8 +89,8 @@ To change the setting, remove the integration in SmartThings and link again.
 
 ```
 SmartThings ──webhook──►  app.py (gunicorn, 127.0.0.1:5001)  ──►  Leviton cloud ──► panel
-     ▲                         │  links.json / snapshots.json
-     └──── stateCallback ──── worker.py (every 10 min)
+     ▲                         │  links.json / snapshots.json / energy.json
+     └──── stateCallback ──── worker.py (every 15 min)
 ```
 
 1. In the SmartThings app, you add the connector and land on the login page
@@ -78,17 +111,33 @@ SmartThings ──webhook──►  app.py (gunicorn, 127.0.0.1:5001)  ──►
 This needs its **own** Schema App, separate from the Philips one.
 
 1. Sign in at <https://developer.smartthings.com/> and create a new project.
-2. **Create three device profiles** (Device Profiles → Create):
+2. **Create the device profiles.** Ready-made definitions are in
+   [`smartthings/profiles/`](smartthings/profiles). The easiest way is the
+   [SmartThings CLI](https://github.com/SmartThingsCommunity/smartthings-cli):
 
-   | Profile | Capabilities | Put its id in |
+   ```bash
+   smartthings login
+   cd smartthings/profiles
+   smartthings deviceprofiles:create -i leviton-breaker.yml
+   smartthings deviceprofiles:create -i leviton-panel.yml
+   smartthings deviceprofiles:create -i leviton-ct.yml
+   smartthings deviceprofiles:create -i leviton-solar.yml
+   ```
+
+   Each command prints the new profile's id. Put them in `.env`:
+
+   | File | Put its id in | What it has |
    |---|---|---|
-   | Leviton Breaker | Switch, Power Meter, Energy Meter, Voltage Measurement, Current Measurement | `ST_PROFILE_BREAKER` |
-   | Leviton Panel | Power Meter, Voltage Measurement | `ST_PROFILE_PANEL` |
-   | Leviton CT | Power Meter, Current Measurement | `ST_PROFILE_CT` |
+   | `leviton-breaker.yml` | `ST_PROFILE_BREAKER` | Switch, power, energy, energy report, voltage, current |
+   | `leviton-panel.yml` | `ST_PROFILE_PANEL` | Main: power, energy, energy report, voltage · Leg A/B: power, current, voltage |
+   | `leviton-ct.yml` | `ST_PROFILE_CT` | Main: power, energy, energy report · Leg A/B: power, current, voltage |
+   | `leviton-solar.yml` | `ST_PROFILE_SOLAR` | Same as CT, labelled Production (optional; uses the CT profile if blank) |
 
-   If `ST_PROFILE_BREAKER` is left blank, breakers use SmartThings' built-in
-   `c2c-switch-power-energy` handler, which has no voltage/current tiles.
-   Panels and CTs are skipped until their profile id is set.
+   You can also build them by hand in the Developer Center. Match the component ids
+   (`main`, `legA`, `legB`) exactly, because the connector sends states to those names.
+   If `ST_PROFILE_BREAKER` is blank, breakers use SmartThings' built-in
+   `c2c-switch-power-energy` handler, which has no voltage/current tiles and doesn't
+   show up in SmartThings Energy. Panels and CTs are skipped until their profile id is set.
 3. Add a **Schema App (Cloud Connector)**:
 
    | Field | Value |
@@ -102,7 +151,7 @@ This needs its **own** Schema App, separate from the Philips one.
 
 4. After saving, SmartThings shows **its own** Client ID and Client Secret
    for the connector. Put those in `ST_CALLBACK_CLIENT_ID` /
-   `ST_CALLBACK_CLIENT_SECRET`. Without them, the 10-minute push won't work.
+   `ST_CALLBACK_CLIENT_SECRET`. Without them, the 15-minute push won't work.
 
 ### Test in the app
 
@@ -159,7 +208,7 @@ WantedBy=multi-user.target
 
 ```ini
 [Unit]
-Description=Leviton Smart Panel SmartThings Connector (10-minute push)
+Description=Leviton Smart Panel SmartThings Connector (15-minute push)
 After=network.target smart-panel-web.service
 
 [Service]
@@ -177,7 +226,7 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now smart-panel-web smart-panel-worker
 curl -s http://127.0.0.1:5001/health    # {"status":"ok"}
-journalctl -u smart-panel-worker -f      # "Pushed N device(s)…" every 10 min
+journalctl -u smart-panel-worker -f      # "Pushed N device(s)…" every 15 min
 ```
 
 ### Hestia web domain + proxy
@@ -227,12 +276,13 @@ sudo systemctl restart smart-panel-web smart-panel-worker
 | Variable | Required | Description |
 |---|---|---|
 | `ST_CLIENT_ID` / `ST_CLIENT_SECRET` | Yes | OAuth credentials you entered in the Schema App |
-| `ST_CALLBACK_CLIENT_ID` / `ST_CALLBACK_CLIENT_SECRET` | Yes | Credentials SmartThings issued (for the 10-minute push) |
-| `ST_PROFILE_BREAKER` / `_PANEL` / `_CT` | Recommended | Device profile ids |
+| `ST_CALLBACK_CLIENT_ID` / `ST_CALLBACK_CLIENT_SECRET` | Yes | Credentials SmartThings issued (for the 15-minute push) |
+| `ST_PROFILE_BREAKER` / `_PANEL` / `_CT` / `_SOLAR` | Recommended | Device profile ids (from `smartthings/profiles/`) |
 | `SECRET_KEY` | Yes | Flask session signing |
 | `CREDENTIAL_KEY` | Yes | Fernet key encrypting stored Leviton credentials |
 | `DATA_DIR` | No | Where JSON state lives (default `.`; use `./data`) |
-| `PUSH_INTERVAL` | No | Seconds between pushes (default `600`) |
+| `PUSH_INTERVAL` | No | Seconds between pushes (default `900`; SmartThings' energy-report minimum) |
+| `ENERGY_MAX_GAP` | No | Longest gap between readings (seconds) that still counts toward energy (default `2100`) |
 | `SNAPSHOT_MAX_AGE` | No | Reuse fetched data for this many seconds (default `60`) |
 | `ALLOWED_REDIRECT_HOSTS` | No | OAuth redirect host suffixes (default `.smartthings.com`) |
 | `DEBUG` / `DEBUG_LEVITON` | No | Verbose logs / raw Leviton responses |
@@ -243,16 +293,18 @@ sudo systemctl restart smart-panel-web smart-panel-worker
 
 ```
 app.py                        Flask app: OAuth login + token, webhook, landing page
-worker.py                     10-minute push to SmartThings (separate service)
+worker.py                     15-minute push to SmartThings (separate service)
 gunicorn.conf.py              127.0.0.1:5001, 2 workers, 120 s timeout
 smartpanel_smartthings/
   leviton.py                  Loads custom_components/ldata/ldata_service.py without
                               Home Assistant; converts its data to SmartThings devices
   connector.py                st-schema interactions
+  energy.py                   Energy totals (power × time) + SmartThings Energy reports
   auth.py                     OAuth codes/tokens, account links, snapshot cache
   callbacks.py                SmartThings callback tokens + stateCallback
   crypto.py                   Credential encryption
   storage.py                  JSON store with a cross-process file lock
+smartthings/profiles/         Device profiles to create with the SmartThings CLI
 templates/                    login.html (incl. 2FA step), index.html
 tests/test_smartthings_connector.py
 ```

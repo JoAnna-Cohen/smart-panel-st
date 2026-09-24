@@ -9,6 +9,7 @@ rotating tokens never orphans the callback credentials or cached data.
 Files in DATA_DIR (all chmod 600):
   links.json            link_id -> {creds (encrypted), allow_control, ...}
   snapshots.json        link_id -> last fetched device snapshot
+  energy.json           link_id -> running Wh totals per device (energy.py)
   auth_codes.json       code -> {link_id, created_at}
   access_tokens.json    token -> {link_id, created_at, expires_in}
   refresh_tokens.json   token -> {link_id, created_at}
@@ -38,6 +39,7 @@ class AuthManager:
         self._cipher = cipher or CredentialCipher()
         self._links = TokenStore(f"{data_dir}/links.json")
         self._snapshots = TokenStore(f"{data_dir}/snapshots.json")
+        self._energy = TokenStore(f"{data_dir}/energy.json")
         self._auth_codes = TokenStore(f"{data_dir}/auth_codes.json")
         self._access_tokens = TokenStore(f"{data_dir}/access_tokens.json")
         self._refresh_tokens = TokenStore(f"{data_dir}/refresh_tokens.json")
@@ -141,6 +143,10 @@ class AuthManager:
     def save_snapshot(self, link_id: str, snapshot: dict):
         self._snapshots.set(link_id, snapshot)
 
+    def update_energy(self, link_id: str, fn):
+        """Atomically advance a link's energy totals; fn(old_state) -> new_state."""
+        return self._energy.update(link_id, fn, default={})
+
     # ------------------------------------------------------------------
     # OAuth codes and tokens
     # ------------------------------------------------------------------
@@ -231,5 +237,6 @@ class AuthManager:
         self._refresh_tokens.delete_where(same)
         self._auth_codes.delete_where(same)
         self._snapshots.delete(link_id)
+        self._energy.delete(link_id)
         self._links.delete(link_id)
         _LOGGER.info("Revoked link %s***", link_id[:6])

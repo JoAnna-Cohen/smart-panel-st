@@ -83,6 +83,22 @@ def _num(value, digits=1):
         return None
 
 
+def _is_solar(label) -> bool:
+    label = (label or "").lower()
+    return "solar" in label or "generat" in label
+
+
+def _leg(items: list, power_key: str, current_key: str, voltage) -> dict:
+    """Sum one leg's power/current over breakers (or a single CT)."""
+    powers = [i.get(power_key) for i in items if i.get(power_key) is not None]
+    currents = [i.get(current_key) for i in items if i.get(current_key) is not None]
+    return {
+        "power": _num(sum(powers)) if powers else None,
+        "current": _num(sum(currents), 2) if currents else None,
+        "voltage": _num(voltage),
+    }
+
+
 def fetch_snapshot(creds: dict) -> tuple[dict, dict]:
     """Fetch every panel, breaker and CT on the account.
 
@@ -102,9 +118,16 @@ def fetch_snapshot(creds: dict) -> tuple[dict, dict]:
     devices: dict[str, dict] = {}
     panels = {p["id"]: p for p in status.get("panels", []) if p.get("id")}
 
+    breakers = list(status.get("breakers", {}).values())
+
     for pid, p in panels.items():
+        # ldata_service normalises every breaker so power1/current1 are on
+        # leg A and power2/current2 on leg B, whatever slot it sits in, so
+        # the panel's per-leg load is the sum over its breakers.
+        own = [b for b in breakers if b.get("panel_id") == pid]
         devices[f"panel-{pid}"] = {
             "kind": "panel",
+            "role": "consumption",
             "panel_id": pid,
             "name": p.get("name") or "Leviton Panel",
             "model": p.get("model") or "LDATA",
@@ -112,18 +135,22 @@ def fetch_snapshot(creds: dict) -> tuple[dict, dict]:
             "online": bool(p.get("connected")),
             "power": _num(status.get(f"{pid}totalPower")),
             "voltage": _num(p.get("voltage")),
+            "legs": {
+                "legA": _leg(own, "power1", "current1", p.get("voltage1")),
+                "legB": _leg(own, "power2", "current2", p.get("voltage2")),
+            },
             "over_voltage": bool(p.get("overVoltage")),
             "under_voltage": bool(p.get("underVoltage")),
         }
 
-    for b in status.get("breakers", {}).values():
+    for b in breakers:
         pid = b.get("panel_id")
         panel = panels.get(pid, {})
         position = b.get("position")
         name = (b.get("name") or "").strip() or f"Breaker {position}"
-        hw_energy = svc._panel_has_hw_counters.get(pid, False)
         devices[f"breaker-{b.get('stable_id') or b['id']}"] = {
             "kind": "breaker",
+            "role": "solar" if _is_solar(b.get("branch_type")) else "consumption",
             "breaker_id": b["id"],
             "panel_id": pid,
             "panel_name": panel.get("name") or "",
@@ -139,24 +166,27 @@ def fetch_snapshot(creds: dict) -> tuple[dict, dict]:
             "power": _num(b.get("power")),
             "current": _num(b.get("current"), 2),
             "voltage": _num(b.get("voltage")),
-            # Only v1 panels have lifetime kWh counters; on v2+ firmware
-            # energyConsumption resets on every bandwidth toggle, so it is
-            # not a usable SmartThings energy total.
-            "energy": _num(b.get("consumption"), 3) if hw_energy else None,
         }
 
     for ct in status.get("cts", {}).values():
         pid = ct.get("panel_id")
         panel = panels.get(pid, {})
+        usage = ct.get("name") or "CT"
         devices[f"ct-{pid}-{ct['id']}"] = {
             "kind": "ct",
+            # Leviton's CT usage type ("Grid", "Solar", …) decides whether
+            # SmartThings treats it as consumption or production.
+            "role": "solar" if _is_solar(usage) else "consumption",
             "panel_id": pid,
-            "name": f"{panel.get('name') or 'Panel'} {ct.get('name') or 'CT'}".strip(),
+            "name": f"{panel.get('name') or 'Panel'} {usage}".strip(),
             "model": "CT Clamp",
             "firmware": panel.get("firmware") or "unknown",
             "online": bool(panel.get("connected", True)),
             "power": _num(ct.get("power")),
-            "current": _num(ct.get("current"), 2),
+            "legs": {
+                "legA": _leg([ct], "power1", "current1", panel.get("voltage1")),
+                "legB": _leg([ct], "power2", "current2", panel.get("voltage2")),
+            },
         }
 
     return {"fetched_at": time.time(), "devices": devices}, new_creds

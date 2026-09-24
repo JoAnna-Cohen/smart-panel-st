@@ -25,17 +25,18 @@ def _snapshot(on=True, can_remote_on=True, online=True):
             "panel-P1": {
                 "kind": "panel", "panel_id": "P1", "name": "Main", "model": "LWHEM",
                 "firmware": "2.1.0", "online": online, "power": 1500.0, "voltage": 240.2,
+                "role": "consumption",
                 "over_voltage": False, "under_voltage": False,
             },
             "breaker-B1": {
                 "kind": "breaker", "breaker_id": "B1_raw", "panel_id": "P1", "panel_name": "Main",
                 "name": "Kitchen", "position": 1, "poles": 1, "rating": 20, "model": "LB120",
                 "firmware": "1.0", "online": online, "on": on, "can_remote_on": can_remote_on,
-                "power": 300.0, "current": 2.5, "voltage": 120.1, "energy": None,
+                "power": 300.0, "current": 2.5, "voltage": 120.1, "role": "consumption",
             },
             "ct-P1-7": {
                 "kind": "ct", "panel_id": "P1", "name": "Main Grid", "model": "CT Clamp",
-                "firmware": "2.1.0", "online": online, "power": 1500.0, "current": 12.5,
+                "firmware": "2.1.0", "online": online, "power": 1500.0, "role": "consumption",
             },
         },
     }
@@ -243,21 +244,34 @@ def test_fetch_snapshot_maps_ldata_status():
 
     status = {
         "panels": [{"id": "P1", "name": "Main", "model": "LWHEM", "firmware": "2.1", "connected": True,
-                    "voltage": 240.0, "overVoltage": False, "underVoltage": False}],
+                    "voltage": 240.0, "voltage1": 120.1, "voltage2": 119.9,
+                    "overVoltage": False, "underVoltage": False}],
         "P1totalPower": 812.34,
         "breakers": {
+            # 1-pole on leg A
             "B1_A65E": {"id": "B1_A65E", "stable_id": "B1", "panel_id": "P1", "name": "", "position": 3,
                         "poles": 1, "rating": 15, "model": "LB115", "firmware": "1.2",
                         "state": "ManualON", "remoteState": "RemoteON", "canRemoteOn": False,
-                        "power": 100.04, "current": 0.834, "voltage": 120.0, "consumption": 5.5},
+                        "power": 100.04, "current": 0.834, "voltage": 120.0,
+                        "power1": 100.04, "power2": None, "current1": 0.834, "current2": None},
+            # 2-pole solar breaker spanning both legs
+            "B2": {"id": "B2", "stable_id": "B2", "panel_id": "P1", "name": "PV", "position": 5,
+                   "poles": 2, "rating": 40, "model": "LB240", "firmware": "1.2",
+                   "state": "ManualON", "remoteState": "RemoteON", "canRemoteOn": True,
+                   "power": 700.0, "current": 2.9, "voltage": 240.0, "branch_type": "Solar",
+                   "power1": 350.0, "power2": 350.0, "current1": 2.9, "current2": 2.9},
         },
-        "cts": {"7": {"id": "7", "panel_id": "P1", "name": "Grid", "power": 812.3, "current": 3.4}},
+        "cts": {
+            "7": {"id": "7", "panel_id": "P1", "name": "Grid", "power": 812.3, "current": 3.4,
+                  "power1": 400.0, "power2": 412.3, "current1": 3.3, "current2": 3.5},
+            "8": {"id": "8", "panel_id": "P1", "name": "Solar", "power": -650.0, "current": 2.7,
+                  "power1": -325.0, "power2": -325.0, "current1": 2.7, "current2": 2.7},
+        },
     }
 
     class FakeService:
         auth_token = "new-token"
         userid = "u1"
-        _panel_has_hw_counters = {"P1": False}
 
         def status(self):
             return status
@@ -267,11 +281,95 @@ def test_fetch_snapshot_maps_ldata_status():
 
     assert creds["token"] == "new-token"
     d = snap["devices"]
-    assert d["panel-P1"]["power"] == 812.3
+    panel = d["panel-P1"]
+    assert panel["power"] == 812.3
+    assert panel["legs"]["legA"] == {"power": 450.0, "current": 3.73, "voltage": 120.1}
+    assert panel["legs"]["legB"] == {"power": 350.0, "current": 2.9, "voltage": 119.9}
     b = d["breaker-B1"]
-    assert (b["breaker_id"], b["name"], b["on"], b["can_remote_on"], b["energy"]) == (
-        "B1_A65E", "Breaker 3", True, False, None)
-    assert d["ct-P1-7"]["name"] == "Main Grid"
+    assert (b["breaker_id"], b["name"], b["on"], b["can_remote_on"], b["role"]) == (
+        "B1_A65E", "Breaker 3", True, False, "consumption")
+    assert d["breaker-B2"]["role"] == "solar"
+    grid, solar = d["ct-P1-7"], d["ct-P1-8"]
+    assert (grid["name"], grid["role"]) == ("Main Grid", "consumption")
+    assert grid["legs"]["legB"] == {"power": 412.3, "current": 3.5, "voltage": 119.9}
+    assert (solar["name"], solar["role"]) == ("Main Solar", "solar")
+
+
+def test_energy_integrates_power_over_time():
+    from smartpanel_smartthings import energy
+
+    def snap(power, online=True, role="consumption"):
+        return {"devices": {"d": {"power": power, "online": online, "role": role}}}
+
+    t0 = 1_000_000.0
+    st = energy.apply(None, s := snap(1000), t0)
+    assert s["devices"]["d"]["energy"] == 0.0 and "consumption_report" not in s["devices"]["d"]
+
+    # 15 min later: trapezoid of 1000 W and 2000 W over 0.25 h = 375 Wh
+    st = energy.apply(st, s := snap(2000), t0 + 900)
+    dev = s["devices"]["d"]
+    assert dev["energy"] == 0.375
+    assert dev["consumption_report"]["energy"] == 375.0
+    assert dev["consumption_report"]["deltaEnergy"] == 375.0
+
+    # A reading 5 min later adds energy but no report (15-minute minimum)
+    st = energy.apply(st, s := snap(2000), t0 + 1200)
+    assert s["devices"]["d"]["energy"] == round((375 + 2000 * 300 / 3600) / 1000, 3)
+    assert "consumption_report" not in s["devices"]["d"]
+
+    # A 2-hour gap (panel offline, server down) is skipped, not estimated
+    before = st["d"]["wh"]
+    st = energy.apply(st, snap(5000), t0 + 1200 + 7200)
+    assert st["d"]["wh"] == before
+
+    # Readings while the panel is offline add nothing
+    st = energy.apply(st, snap(5000, online=False), t0 + 1200 + 7200 + 600)
+    assert st["d"]["wh"] == before
+
+    # An out-of-order (older) reading changes nothing
+    assert energy.apply(st, snap(9999), t0) == st
+
+    # Export (negative) doesn't count as consumption; solar uses magnitude
+    assert energy._metered_watts({"power": -300, "role": "consumption"}) == 0.0
+    assert energy._metered_watts({"power": -300, "role": "solar"}) == 300
+
+
+def test_state_refresh_reports_legs_and_energy(env):
+    tokens = _link(env)
+    link_id, _, _ = env.auth_manager.link_for_token(tokens["access_token"])
+    snap = _snapshot()
+    snap["fetched_at"] = 1.0  # stale -> forces a fresh fetch
+    env.auth_manager.save_snapshot(link_id, snap)
+
+    fresh = _snapshot()
+    fresh["devices"]["ct-P1-7"]["legs"] = {
+        "legA": {"power": 700.0, "current": 6.0, "voltage": 120.0},
+        "legB": {"power": 800.0, "current": 6.5, "voltage": 120.0},
+    }
+    with patch("smartpanel_smartthings.leviton.fetch_snapshot", return_value=(fresh, {"token": "lt"})):
+        resp = _webhook(env, tokens["access_token"], "stateRefreshRequest",
+                        devices=[{"externalDeviceId": "ct-P1-7"}])
+    states = resp["deviceState"][0]["states"]
+    by = {(s["component"], s["capability"]): s["value"] for s in states}
+    assert by[("main", "st.powerMeter")] == 1500.0
+    assert by[("main", "st.energyMeter")] == 0.0  # first reading starts the total
+    assert by[("legA", "st.currentMeasurement")] == 6.0
+    assert by[("legB", "st.powerMeter")] == 800.0
+    assert env.auth_manager._energy.get(link_id)["ct-P1-7"]["w"] == 1500.0
+
+
+def test_discovery_uses_meter_category_and_solar_profile(env, monkeypatch):
+    monkeypatch.setattr(sys.modules["smartpanel_smartthings.connector"], "PROFILE_SOLAR", "profile-solar")
+    tokens = _link(env)
+    snap = _snapshot()
+    snap["devices"]["ct-P1-8"] = dict(snap["devices"]["ct-P1-7"], role="solar", name="Main Solar")
+    with patch("smartpanel_smartthings.leviton.fetch_snapshot", return_value=(snap, {"token": "lt"})):
+        resp = _webhook(env, tokens["access_token"], "discoveryRequest")
+    devices = {d["externalDeviceId"]: d for d in resp["devices"]}
+    assert devices["panel-P1"]["deviceContext"]["categories"] == ["CurbPowerMeter"]
+    assert devices["ct-P1-7"]["deviceUniqueId"] == "profile-ct"
+    assert devices["ct-P1-8"]["deviceUniqueId"] == "profile-solar"
+    assert devices["breaker-B1"]["deviceContext"]["categories"] == ["Switch"]
 
 
 def test_ldata_service_loads_without_home_assistant():

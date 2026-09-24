@@ -1,0 +1,23 @@
+# Leviton smart breaker. The switch only works if breaker control was
+# allowed when the account was linked.
+# Create with: smartthings deviceprofiles:create -i leviton-breaker.yml
+name: leviton-breaker
+components:
+  - id: main
+    capabilities:
+      - id: switch
+        version: 1
+      - id: powerMeter
+        version: 1
+      - id: energyMeter
+        version: 1
+      - id: powerConsumptionReport
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: healthCheck
+        version: 1
+    categories:
+      - name: Switch

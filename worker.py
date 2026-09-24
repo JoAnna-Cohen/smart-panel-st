@@ -1,6 +1,6 @@
 """Background worker: push fresh panel data to SmartThings on a schedule.
 
-Every PUSH_INTERVAL seconds (default 600 = 10 minutes) it fetches each
+Every PUSH_INTERVAL seconds (default 900 = 15 minutes) it fetches each
 linked account from Leviton and sends the states to SmartThings'
 stateCallback URL, so values stay current for automations even when nobody
 opens the app. Runs as its own systemd service next to gunicorn.

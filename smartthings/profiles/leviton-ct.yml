@@ -1,0 +1,40 @@
+# Leviton Grid / consumption CT clamp. Same layout as SmartThings'
+# own Aeotec Home Energy Meter: total on main, per-leg on legA / legB.
+# Create with: smartthings deviceprofiles:create -i leviton-ct.yml
+name: leviton-ct
+components:
+  - id: main
+    label: "Total"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: energyMeter
+        version: 1
+      - id: powerConsumptionReport
+        version: 1
+      - id: healthCheck
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legA
+    label: "Leg A"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter
+  - id: legB
+    label: "Leg B"
+    capabilities:
+      - id: powerMeter
+        version: 1
+      - id: currentMeasurement
+        version: 1
+      - id: voltageMeasurement
+        version: 1
+    categories:
+      - name: CurbPowerMeter

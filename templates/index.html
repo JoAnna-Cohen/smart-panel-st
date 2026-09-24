@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BizGeni Smart Panel Connector</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #09142a;
+    --surface:#0d1e3e;
+    --border: #1a3565;
+    --teal:   #18bfb0;
+    --gold:   #d4a843;
+    --text:   #dce8f5;
+    --muted:  #6b8aaa;
+    color-scheme: dark;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Outfit', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 2.5rem 1.25rem;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.75rem;
+  }
+
+  .logo-wrap img {
+    height: 56px;
+    width: auto;
+    display: block;
+  }
+
+  .rule {
+    width: 40px;
+    height: 2px;
+    background: var(--teal);
+    border-radius: 2px;
+  }
+
+  .tagline { text-align: center; display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .eyebrow {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--teal);
+  }
+
+  h1 {
+    font-size: 1.45rem;
+    font-weight: 600;
+    line-height: 1.3;
+    text-wrap: balance;
+  }
+
+  .desc {
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+
+  .links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    width: 100%;
+  }
+
+  .link-card {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .link-card:hover        { border-color: var(--teal); background: #0f2248; }
+  .link-card.gold:hover   { border-color: var(--gold); }
+
+  .icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon.teal { background: rgba(24,191,176,.13); color: var(--teal); }
+  .icon.gold { background: rgba(212,168,67,.13);  color: var(--gold); }
+
+  .link-label { font-size: 0.875rem; font-weight: 500; line-height: 1.2; }
+  .link-sub   { font-size: 0.75rem;  color: var(--muted); margin-top: 2px; }
+
+  .arrow { margin-left: auto; color: var(--muted); font-size: 0.9rem; }
+
+  footer {
+    margin-top: 1.5rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    opacity: 0.5;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+
+    <div class="logo-wrap">
+      <img src="https://bizgeni.com/static/geni-logo.png" alt="BizGeni">
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="tagline">
+      <span class="eyebrow">Samsung SmartThings</span>
+      <h1>Leviton Smart Panel Connector</h1>
+      <p class="desc">Cloud-to-cloud integration bringing Leviton LDATA and LWHEM smart breaker panels into SmartThings — live power, voltage and current for every breaker, CT clamp and panel.</p>
+    </div>
+
+    <nav class="links">
+      <a class="link-card gold" href="https://bizgeni.com" target="_blank" rel="noopener noreferrer">
+        <div class="icon gold">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="link-label">bizgeni.com</div>
+          <div class="link-sub">BizGeni home</div>
+        </div>
+        <span class="arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://github.com/JoAnna-Cohen/smart-panel-st" target="_blank" rel="noopener noreferrer">
+        <div class="icon teal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="link-label">GitHub Repository</div>
+          <div class="link-sub">smart-panel-st</div>
+        </div>
+        <span class="arrow">↗</span>
+      </a>
+    </nav>
+
+    <footer>smart-panel.bizgeni.com &middot; SmartThings Schema Connector</footer>
+
+  </div>
+</body>
+</html>
